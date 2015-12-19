@@ -9,6 +9,9 @@ global F_u0 = 1000;
 global alpha = 0.01;
 global tau_u = 1;
 
+global z_first = R/R_1;
+global z_last= 1;
+
 function r = a()
     global delta;
     global R;
@@ -67,6 +70,10 @@ function r = g(T, t)
     k_p = ppval(pp_k, T);
     r = F_u(t) * R * k_p / r * exp(-k_p * (R_1 - r)) - 4*k_p * n_pr * sigma * T**4;
 
+end
+
+function r = p_tilde(z, x)
+    r = ((1 + (x-1)**2 * y_m**2) * atan((x-1)**y_m))/((z-1)*y_m)
 end
 
 function A = A_1(T)
@@ -192,9 +199,56 @@ function F = F_1(T, t, y_ij)
     end
 end
 
-T = ones(1/h_x, 1/h_phi) .* 293;
-A_1(T)
-B_1(T)
-D_1(T)
+function Y = tma(A, B, C, D)
+    n = length(B);
 
-F_1(T, 0, 0)
+    u(1) = C(1) / B(1);
+    for i = 2:n-1
+        u(i) = C(i)/(B(i) - A(i)*u(i-1));
+    end
+
+    v = ones(1, n);
+
+    d(1) = D(1)/B(1);
+    for i = 2:n
+        d(i) = (D(i) - A(i)*d(i-1))/(B(i) - A(i)*u(i-1));
+    end
+
+    Y(n) = d(n);
+    for i = fliplr(1:n - 1)
+        Y(i) = d(i) - u(i)*Y(i+1);
+    end
+end
+
+function r = tube(t, T)
+    global h_x;
+    global h_phi;
+    global z_first;
+    global z_last;
+    global tau;
+
+    A = A_1(T);
+    B = B_1(T);
+    D = D_1(T);
+
+
+    for j = 1:1/h_phi
+        a_vec = A(j, 2:1/h_x -1);
+        b_vec = B(j, 2:1/h_x -1);
+        c_vec = D(j, 2:1/h_x -1);
+        y_vec = T(j, :);
+
+        T(j, :) = [293 tma(a_vec, b_vec, c_vec, y_vec) 293];
+    end
+    r = T;
+end
+
+T = ones(1/h_x, 1/h_phi) .* 293;
+% A_1(T)
+% B_1(T)
+% D_1(T)
+%
+% F_1(T, 0, 0)
+
+r = tube(0, T)
+plot(1:length(r(1, :)), r(1, :))
