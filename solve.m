@@ -67,7 +67,6 @@ function r = g(T, t, r)
     sigma = 5.67e-8;
     k_p = ppval(pp_k, T);
     r = F_u(t) * R * k_p / r * exp(-k_p * (R_1 - r)) - 4*k_p * n_pr**2 * sigma * T**4;
-
 end
 
 % function r = p_tilde(z, x)
@@ -88,18 +87,18 @@ function A = A_1(T)
     pp_p = splinefit(x, p(x), length(x), "order", 3);
 
     L = lambda(T);
-    for iter_j = 1:1/h_phi
-        for iter_i = 2:1/h_x - 1
-            z_half = ppval(pp_z, iter_i - h_x);
-            p_half = ppval(pp_p, iter_i - h_x);
+    for j = 1:1/h_phi
+        for i = 2:1/h_x - 1
+            z_half = ppval(pp_z, i - h_x);
+            p_half = ppval(pp_p, i - h_x);
 
-            pp_l = splinefit(T(iter_j, :), L(iter_j, :), 1/h_x, "order", 3);
-            T_ij = T(iter_j, iter_i);
-            T_i1_n = T(iter_j, iter_i - 1);
+            pp_l = splinefit(T(j, :), L(j, :), 1/h_x, "order", 3);
+            T_ij = T(j, i);
+            T_i1_n = T(j, i - 1);
 
             l_half_n = ppval(pp_l, linspace(T_i1_n, T_ij, 3)(2));
 
-            A(iter_j, iter_i) = (tau * z_half * p_half * l_half_n) / (h_x * R_1**2);
+            A(j, i) = (tau * z_half * p_half * l_half_n) / (h_x * R_1**2);
         end
     end
 end
@@ -119,28 +118,29 @@ function B = B_1(T)
 
     L = lambda(T);
 
-    for iter_j = 1:1/h_phi
-        for iter_i = 2:1/h_x - 1
-            z_half_n = ppval(pp_z, iter_i - h_x);
-            z_half_p = ppval(pp_z, iter_i + h_x);
+    for j = 1:1/h_phi
+        for i = 2:1/h_x - 1
+            z_half_n = ppval(pp_z, i - h_x);
 
-            p_half_n = ppval(pp_p, iter_i - h_x);
-            p_half_p = ppval(pp_p, iter_i + h_x);
+            z_half_p = ppval(pp_z, i + h_x);
 
-            pp_l = splinefit(T(iter_j, :), L(iter_j, :), 1/h_x, "order", 3);
+            p_half_n = ppval(pp_p, i - h_x);
+            p_half_p = ppval(pp_p, i + h_x);
 
-            T_ij = T(iter_j, iter_i);
-            T_i1_p = T(iter_j, iter_i + 1);
-            T_i1_n = T(iter_j, iter_i - 1);
+            pp_l = splinefit(T(j, :), L(j, :), 1/h_x, "order", 3);
+
+            T_ij = T(j, i);
+            T_i1_p = T(j, i + 1);
+            T_i1_n = T(j, i - 1);
 
             l_half_p = ppval(pp_l, linspace(T_ij, T_i1_p, 3)(2));
             l_half_n = ppval(pp_l, linspace(T_i1_n, T_ij, 3)(2));
 
-            c_1 = (z(iter_i) * h_x * C(T(iter_j, iter_i)))/p(iter_i);
+            c_1 = (z(i) * h_x * C(T(j, i)))/p(i);
             c_2 = (tau * z_half_n * p_half_n * l_half_n)/(h_x * R_1**2);
             c_3 = (tau * z_half_p * p_half_p * l_half_p)/(h_x * R_1**2);
 
-            B(iter_j, iter_i) = c_1 + c_2 + c_3;
+            B(j, i) = c_1 + c_2 + c_3;
         end
     end
 end
@@ -159,18 +159,18 @@ function D = D_1(T)
     pp_p = splinefit(x, p(x), length(x), "order", 3);
 
     L = lambda(T);
-    for iter_j = 1:1/h_phi
-        for iter_i = 2:1/h_x - 1
-            z_half = ppval(pp_z, iter_i + h_x);
-            p_half = ppval(pp_p, iter_i + h_x);
+    for j = 1:1/h_phi
+        for i = 2:1/h_x - 1
+            z_half = ppval(pp_z, i + h_x);
+            p_half = ppval(pp_p, i + h_x);
 
-            pp_l = splinefit(T(iter_j, :), L(iter_j, :), 1/h_x, "order", 3);
-            T_ij = T(iter_j, iter_i);
-            T_i1_p = T(iter_j, iter_i + 1);
+            pp_l = splinefit(T(j, :), L(j, :), 1/h_x, "order", 3);
+            T_ij = T(j, i);
+            T_i1_p = T(j, i + 1);
 
             l_half_p = ppval(pp_l, linspace(T_ij, T_i1_p, 3)(2));
 
-            D(iter_j, iter_i) = (tau * z_half * p_half * l_half_p) / (h_x * R_1**2);
+            D(j, i) = (tau * z_half * p_half * l_half_p) / (h_x * R_1**2);
         end
     end
 end
@@ -186,18 +186,18 @@ function F = F_1(T, t, Y)
     x = linspace(0, 1, 1/h_x);
     phi = linspace(0, pi/2, 1/h_phi);
 
-    r = linspace(R_1, R, length(x));
-    alpha = linspace(0, pi/2, length(phi));
+    % r = linspace(R_1, R, length(x));
+    % alpha = linspace(0, pi/2, length(phi));
 
-    for iter_j = 1:1/h_phi
-        for iter_i = 2:1/h_x - 1
-            z_i = z(iter_i);
-            c_ij = C(T(iter_j, iter_i));
-            p_i = p(iter_i);
+    for j = 1:1/h_phi
+        for i = 2:1/h_x - 1
+            z_i = z(i);
+            c_ij = C(T(j, i));
+            p_i = p(i);
 
-            c_1 = (z_i * h_x * c_ij * Y(iter_j, iter_i))/(p_i);
-            c_2 = (tau * z_i * h_x) / p_i * g(T(iter_j, iter_i), t, r(iter_i));
-            F(iter_j, iter_i) = c_1 - c_2;
+            c_1 = (z_i * h_x * c_ij * Y(j, i))/(p_i);
+            c_2 = (tau * z_i * h_x) / p_i * g(T(j, i), t, z_i*R_1);
+            F(j, i) = c_1 + c_2;
         end
     end
 end
@@ -253,6 +253,5 @@ T = ones(1/h_x, 1/h_phi) .* 293;
 %
 % F_1(T, 0, 0)
 
-r = tube(0, T)
-r = tube(1, T)
+r = tube(tau, T)
 plot(1:length(r(1, :)), r(1, :))
