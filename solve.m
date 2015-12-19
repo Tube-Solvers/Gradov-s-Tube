@@ -5,6 +5,9 @@ global tau = 1e-6;
 global h_x = 1/5;
 global h_phi = 1/5;
 global n_pr = 1.46;
+global F_u0 = 1000;
+global alpha = 0.01;
+global tau_u = 1;
 
 function r = a()
     global delta;
@@ -38,18 +41,32 @@ end
 
 T_ = [293, 1278, 1528, 1677];
 k_p_ = [2e-3, 5e-3, 7.8e-3, 1e-2];
-pp = splinefit(T_, k_p_, length(T_), "order", 3);
+global pp_k = splinefit(T_, k_p_, length(T_), "order", 3);
 
 function r = k_p(T)
     r = ppval(pp, T);
 end
 
-function r = g(T)
+function r = F_u(t)
+    global F_u0;
+    global alpha;
+    global tau_u;
+
+    r = F_u0 * t * exp(-alpha*t / tau_u);
+end
+
+function r = g(T, t)
+    global R;
+    global R_1;
+    global pp_k;
+    global n_pr;
+
+    r = R_1;
+
     sigma = 5.67e-8;
-    tau_u = 1;
-    F_0u = 1000;
-    alpha = 0.01;
-    % r = F_0u *
+    k_p = ppval(pp_k, T);
+    r = F_u(t) * R * k_p / r * exp(-k_p * (R_1 - r)) - 4*k_p * n_pr * sigma * T**4;
+
 end
 
 function A = A_1(T)
@@ -152,7 +169,32 @@ function D = D_1(T)
     end
 end
 
+function F = F_1(T, t, y_ij)
+    global tau;
+    global h_x;
+    global h_phi;
+    global R_1;
+
+    F = zeros(1/h_x, 1/h_phi);
+    x = linspace(0, 1, 1/h_x);
+    phi = linspace(0, pi/2, 1/h_phi);
+
+    for iter_i = 2:1/h_x - 1
+        for iter_j = 1:1/h_phi
+            z_i = z(iter_i);
+            c_ij = C(T(iter_j, iter_i));
+            p_i = p(iter_i);
+
+            c_1 = (z_i * h_x * c_ij * y_ij)/(p_i);
+            c_2 = (tau * z_i * h_x) / p_i * g(T(iter_j, iter_i), t);
+            F(iter_j, iter_i) = c_1 - c_2;
+        end
+    end
+end
+
 T = ones(1/h_x, 1/h_phi) .* 293;
 A_1(T)
 B_1(T)
 D_1(T)
+
+F_1(T, 0, 0)
