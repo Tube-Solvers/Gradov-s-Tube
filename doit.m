@@ -2,209 +2,162 @@ function doit
     R = 0.25;
     R_1 = 0.40;
     delta = 0.2;
-    tau = 1e-6;
-    h_x = 1/20;
-    h_phi = 1/20;
+    tau = 1e-5;
     n_pr = 1.46;
     F_u0 = 1000;
     alpha = 0.01;
     tau_u = 1;
-
-    z_first = R/R_1;
-    z_last= 1;
+    T_p = 500;
+    T_e = 293;
 
     a = (pi/2 - delta)/(1 - R/R_1);
-
     y_m = tan(pi/2 - delta);
 
-    function r = z(x)
-        r = 1 + 1/a * atan((x - 1) * y_m);
+    k_x = 101;
+    h_x = 1/(k_x-1);
+    x = (0:k_x-1)*h_x;
+
+    k_phi = 21;
+    h_phi = pi/(k_phi-1);
+    phi = ((0:k_phi-1)*h_phi)';
+
+    function xl = ml(x)
+        xl = [1.5*x(:, 1) - 0.5*x(:, 2), (x(:, 1:end-1) + x(:, 2:end))/2];
     end
 
-    function r = p(x)
-        r = a/y_m .* (1 + (x - 1).^2 * y_m^2);
+    function xr = mr(x)
+        xr = [(x(:, 1:end-1) + x(:, 2:end))/2, 1.5*x(:, end) - 0.5*x(:, end-1)];
     end
+
+    xl = ml(x);
+    xr = mr(x);
+
+    % Точно ли это z юзается дальше? ещё есть z = r/R_1
+    function z = zf(x)
+        z = 1 + 1/a * atan((x - 1) * y_m);
+    end
+    z = zf(x);
+    zl = zf(xl);
+    zr = zf(xr);
+
+    function p = pf(x)
+        p = a/y_m .* (1 + (x - 1).^2 * y_m^2);
+    end
+    p = pf(x);
+    pl = pf(xl);
+    pr = pf(xr);
 
     function r = lambda(T)
         r = 0.134e-1 * (1 + 4.35e-4*T);
     end
 
     function r = C(T)
-        r = 2.049 + 0.563e-3*T - 0.528e5/T.^2;
+        r = 2.049 + 0.563e-3*T - 0.528e5./T.^2;
     end
 
-    T_ = [293, 1278, 1528, 1677];
-    k_p_ = [2e-3, 5e-3, 7.8e-3, 1e-2];
-    pp_k = splinefit(T_, k_p_, length(T_), "order", 3);
+    %function r = F_u(t)
+    %    r = F_u0 .* t .* exp(-alpha.*t./tau_u);
+    %end
 
-    function r = F_u(t)
-        r = F_u0 * t * exp(-alpha*t / tau_u);
-    end
+    %t_ = [293, 1278, 1528, 1677];
+    %k_p_ = [2e-3, 5e-3, 7.8e-3, 1e-2];
+    %pp_k = splinefit(t_, k_p_, length(t_), "order", 3);
 
-    function r = g(T, t, r)
-        sigma = 5.67e-8;
-        k_p = ppval(pp_k, T);
-        r = F_u(t) * R * k_p / r * exp(-k_p * (R_1 - r)) - 4*k_p * n_pr**2 * sigma * T**4;
-    end
+    %function r = q(T, t, r)
+    %    sigma = 5.67e-8;
+    %    k_p = ppval(pp_k, T);
+    %    r = F_u(t) * R * k_p / r * exp(-k_p * (R_1 - r)) - 4*k_p * n_pr**2 * sigma * T**4;
+    %end
 
-    % function r = p_tilde(z, x)
-    %     r = ((1 + (x-1)**2 * y_m**2) * atan((x-1)**y_m))/((z-1)*y_m)
-    % end
+    % Что делать с g? а именно что такое r в нем
+    function g = g(z, phi, t, T)
+        g = 0;
+    end 
 
-    function A = A_1(T)
-        A = zeros(1/h_x, 1/h_phi);
-        x = linspace(0, 1, 1/h_x);
-        phi = linspace(0, pi/2, 1/h_phi);
+    function Th = iterate_step(t, T, step_fn)
+        Th = T;
+        while 1
+            Th_old = Th;
+            
+            Th = step_fn(t, T, Th);
 
-        pp_z = splinefit(x, z(x), length(x), "order", 3);
-        pp_p = splinefit(x, p(x), length(x), "order", 3);
-
-        L = lambda(T);
-        for j = 1:1/h_phi
-            for i = 2:1/h_x - 1
-                z_half = ppval(pp_z, i - h_x);
-                p_half = ppval(pp_p, i - h_x);
-
-                pp_l = splinefit(T(j, :), L(j, :), 1/h_x, "order", 3);
-                T_ij = T(j, i);
-                T_i1_n = T(j, i - 1);
-
-                l_half_n = ppval(pp_l, linspace(T_i1_n, T_ij, 3)(2));
-
-                A(j, i) = (tau * z_half * p_half * l_half_n) / (h_x * R_1**2);
+            if max(abs(1 - Th(:)./Th_old(:))) <= 1e-6
+                break
             end
         end
     end
 
-    function B = B_1(T)
-        B = zeros(1/h_x, 1/h_phi);
-        x = linspace(0, 1, 1/h_x);
-        phi = linspace(0, pi/2, 1/h_phi);
+    function Th = step_x(t, T, Th)
+        U = h_x .* z ./ p;
 
-        pp_z = splinefit(x, z(x), length(x), "order", 3);
-        pp_p = splinefit(x, p(x), length(x), "order", 3);
+        A = tau./(h_x .* R_1^2) .* zl .* pl .* lambda(ml(Th));
+        D = tau./(h_x .* R_1^2) .* zr .* pr .* lambda(mr(Th));
+        B = A .+ U.*C(Th) .+ D;
+        F = (C(Th).*T .- tau.*g(z, phi, t, Th)) .* U;
 
-        L = lambda(T);
+        A(:, 1) = nan;
+        D(:, 1) = 1;
+        B(:, 1) = 1;
+        F(:, 1) = 0;
 
-        for j = 1:1/h_phi
-            for i = 2:1/h_x - 1
-                z_half_n = ppval(pp_z, i - h_x);
+        A(:, end) = 1;
+        D(:, end) = nan;
+        B(:, end) = 1;
+        F(:, end) = 0;
 
-                z_half_p = ppval(pp_z, i + h_x);
-
-                p_half_n = ppval(pp_p, i - h_x);
-                p_half_p = ppval(pp_p, i + h_x);
-
-                pp_l = splinefit(T(j, :), L(j, :), 1/h_x, "order", 3);
-
-                T_ij = T(j, i);
-                T_i1_p = T(j, i + 1);
-                T_i1_n = T(j, i - 1);
-
-                l_half_p = ppval(pp_l, linspace(T_ij, T_i1_p, 3)(2));
-                l_half_n = ppval(pp_l, linspace(T_i1_n, T_ij, 3)(2));
-
-                c_1 = (z(i) * h_x * C(T(j, i)))/p(i);
-                c_2 = (tau * z_half_n * p_half_n * l_half_n)/(h_x * R_1**2);
-                c_3 = (tau * z_half_p * p_half_p * l_half_p)/(h_x * R_1**2);
-
-                B(j, i) = c_1 + c_2 + c_3;
-            end
-        end
+        Th = solve_tridiag(A, -B, D, -F);
     end
 
-    function D = D_1(T)
-        C = zeros(1/h_x, 1/h_phi);
-        x = linspace(0, 1, 1/h_x);
-        phi = linspace(0, pi/2, 1/h_phi);
+    function Th = step_y(t, T, Th)
+        V = z .* h_phi;
 
-        pp_z = splinefit(x, z(x), length(x), "order", 3);
-        pp_p = splinefit(x, p(x), length(x), "order", 3);
+        A = tau./(z .* R_1^2) .* lambda(ml(Th')');
+        D = tau./(z .* R_1^2) .* lambda(mr(Th')');
+        B = A .+ V.*C(Th) .+ D;
+        F = (C(Th).*T .- tau.*g(z, phi, t, Th)) .* V;
 
-        L = lambda(T);
-        for j = 1:1/h_phi
-            for i = 2:1/h_x - 1
-                z_half = ppval(pp_z, i + h_x);
-                p_half = ppval(pp_p, i + h_x);
+        A(:, 1) = nan;
+        D(:, 1) = 1;
+        B(:, 1) = 1;
+        F(:, 1) = 0;
 
-                pp_l = splinefit(T(j, :), L(j, :), 1/h_x, "order", 3);
-                T_ij = T(j, i);
-                T_i1_p = T(j, i + 1);
+        A(:, end) = 1;
+        D(:, end) = nan;
+        B(:, end) = 1;
+        F(:, end) = 0;
 
-                l_half_p = ppval(pp_l, linspace(T_ij, T_i1_p, 3)(2));
-
-                D(j, i) = (tau * z_half * p_half * l_half_p) / (h_x * R_1**2);
-            end
-        end
+        Th = solve_tridiag(A', -B', D', -F')';
     end
 
-    function F = F_1(T, t, Y)
-        F = zeros(1/h_x, 1/h_phi);
-        x = linspace(0, 1, 1/h_x);
-        phi = linspace(0, pi/2, 1/h_phi);
-
-        % r = linspace(R_1, R, length(x));
-        % alpha = linspace(0, pi/2, length(phi));
-
-        for j = 1:1/h_phi
-            for i = 2:1/h_x - 1
-                z_i = z(i);
-                c_ij = C(T(j, i));
-                p_i = p(i);
-
-                c_1 = (z_i * h_x * c_ij * Y(j, i))/(p_i);
-                c_2 = (tau * z_i * h_x) / p_i * g(T(j, i), t, z_i*R_1);
-                F(j, i) = c_1 + c_2;
-            end
-        end
+    T = T_e * ones(k_phi, k_x);
+    % Если установсить тока крайний слой в температуру плазмы,
+    % он охлаждается до температуры среды за одну итерацию. Почему?
+    T(:, [1, 2]) = T_p;
+    hold on;
+    for t = 1:100
+        T = iterate_step(t, T, @(t, T, Th) step_x(t, T, Th));
+        T = iterate_step(t, T, @(t, T, Th) step_x(t, T, Th));
+        plot(x, T(1, :));
     end
 
-    function Y = tma(A, B, C, D)
-        n = length(B);
+end
 
-        u(1) = C(1) / B(1);
-        for i = 2:n-1
-            u(i) = C(i)/(B(i) - A(i)*u(i-1));
-        end
+function x = solve_tridiag(a, b, c, d)
+    n = columns(a);
 
-        v = ones(1, n);
-
-        d(1) = D(1)/B(1);
-        for i = 2:n
-            d(i) = (D(i) - A(i)*d(i-1))/(B(i) - A(i)*u(i-1));
-        end
-
-        Y(n) = d(n);
-        for i = fliplr(1:n - 1)
-            Y(i) = d(i) - u(i)*Y(i+1);
-        end
+    cc(:, 1) = c(:, 1) ./ b(:, 1);
+    for i = 2:n-1
+        cc(:, i) = c(:, i)./(b(:, i) - a(:, i).*cc(:, i-1));
     end
 
-    function r = tube(t, T)
-        A = A_1(T);
-        B = B_1(T);
-        D = D_1(T);
-        Y = F_1(T, t, T);
-
-        for j = 1:1/h_phi
-            a_vec = A(j, 2:1/h_x -1);
-            b_vec = B(j, 2:1/h_x -1);
-            c_vec = D(j, 2:1/h_x -1);
-            y_vec = Y(j, 2:1/h_x -1);
-
-            T(j, :) = [293 tma(a_vec, -b_vec, c_vec, -y_vec) 293];
-        end
-        r = T;
+    dd(:, 1) = d(:, 1) ./ b(:, 1);
+    for i = 2:n
+        dd(:, i) = (d(:, i) - a(:, i).*dd(:, i-1)) ./ (b(:, i) - a(:, i).*cc(:, i-1));
     end
 
-    T = ones(1/h_x, 1/h_phi) .* 293;
-    % A_1(T)
-    % B_1(T)
-    % D_1(T)
-    %
-    % F_1(T, 0, 0)
-
-    r = tube(tau, T);
-    plot(1:columns(r), r(1, :));
+    x(:, n) = dd(:, n);
+    for i = fliplr(1:n - 1)
+        x(:, i) = dd(:, i) - cc(:, i).*x(:, i+1);
+    end
 end
 
