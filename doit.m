@@ -74,19 +74,6 @@ function doit
         g = 0;
     end 
 
-    function Th = iterate_step(t, T, step_fn)
-        Th = T;
-        while 1
-            Th_old = Th;
-            
-            Th = step_fn(t, T, Th);
-
-            if max(abs(1 - Th(:)./Th_old(:))) <= 1e-6
-                break
-            end
-        end
-    end
-
     function Th = step_x(t, T, Th)
         U = h_x .* z ./ p;
 
@@ -116,18 +103,33 @@ function doit
         B = A .+ V.*C(Th) .+ D;
         F = (C(Th).*T .- tau.*g(z, phi, t, Th)) .* V;
 
-        A(:, 1) = nan;
-        D(:, 1) = 1;
-        B(:, 1) = 1;
-        F(:, 1) = 0;
+        A(1, :) = nan;
+        D(1, :) = 1;
+        B(1, :) = 1;
+        F(1, :) = 0;
 
-        A(:, end) = 1;
-        D(:, end) = nan;
-        B(:, end) = 1;
-        F(:, end) = 0;
+        A(end, :) = 1;
+        D(end, :) = nan;
+        B(end, :) = 1;
+        F(end, :) = 0;
 
         Th = solve_tridiag(A', -B', D', -F')';
     end
+
+    function Th = iterate_steps(t, T)
+        Th = T;
+        while 1
+            Th_old = Th;
+            
+            Th = step_x(t, T, Th);
+            Th = step_y(t, T, Th);
+           
+            if max(abs(1 - Th(:)./Th_old(:))) <= 1e-6
+                break
+            end
+        end
+    end
+
 
     T = T_e * ones(k_phi, k_x);
     % Если установсить тока крайний слой в температуру плазмы,
@@ -135,8 +137,7 @@ function doit
     T(:, [1, 2]) = T_p;
     hold on;
     for t = 1:100
-        T = iterate_step(t, T, @(t, T, Th) step_x(t, T, Th));
-        T = iterate_step(t, T, @(t, T, Th) step_x(t, T, Th));
+        T = iterate_steps(t, T);
         plot(x, T(1, :));
     end
 
