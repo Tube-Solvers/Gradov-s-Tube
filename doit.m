@@ -2,7 +2,7 @@ function doit
     R = 0.25;
     R_1 = 0.40;
     delta = 0.2;
-    tau = 1e-5;
+    tau = 1e-4;
     n_pr = 1.46;
     F_u0 = 1000;
     alpha = 0.01;
@@ -116,13 +116,12 @@ function doit
         Th = solve_tridiag(A', -B', D', -F')';
     end
 
-    function Th = iterate_steps(t, T)
+    function Th = iterate_step(t, T, step)
         Th = T;
         while 1
             Th_old = Th;
             
-            Th = step_x(t, T, Th);
-            Th = step_y(t, T, Th);
+            Th = step(t, T, Th);
            
             if max(abs(1 - Th(:)./Th_old(:))) <= 1e-6
                 break
@@ -130,17 +129,16 @@ function doit
         end
     end
 
-
     T = T_e * ones(k_phi, k_x);
     % Если установсить тока крайний слой в температуру плазмы,
     % он охлаждается до температуры среды за одну итерацию. Почему?
     T(:, [1, 2]) = T_p;
     hold on;
     for t = 1:100
-        T = iterate_steps(t, T);
+        T = iterate_step(t, T, @(t, T, Th) step_x(t, T, Th));
+        T = iterate_step(t, T, @(t, T, Th) step_y(t, T, Th));
         plot(x, T(1, :));
     end
-
 end
 
 function x = solve_tridiag(a, b, c, d)
