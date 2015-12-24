@@ -75,7 +75,7 @@ function doit
         % g(1:50, :) = 0;
 
         g = zeros(size(T));
-        if t*tau <= 2*tau
+        if t <= 2*tau
             g(25:50, 1) = -1e6;
         end
     end
@@ -136,11 +136,11 @@ function doit
     end
 
     function plot_temperature(i, T)
-        printf("Time %d\n", i)
+        printf("Time %d\n", i/tau)
         fig = figure('visible', 'off');
         imagesc(linspace(R, R_1, columns(T)), linspace(pi/2, 0, rows(T)), T, [273, 19000]);
         colorbar();
-        print(["plots/" mat2str(t) ".png"], "-dpng")
+        print(["plots/" mat2str(t/tau) ".png"], "-dpng")
     end
 
     function plot_tube(T)
@@ -160,7 +160,7 @@ function doit
     T = T_e * ones(k_phi, k_x);
     % T(:, [1, 2]) = T_p;
     % hold on;
-    for t = 1:100
+    for t = (1:100).*tau
         T = iterate_step(t, T, @(t, T, Th) step_x(t, T, Th));
         T = iterate_step(t, T, @(t, T, Th) step_y(t, T, Th));
         plot_temperature(t, T);
