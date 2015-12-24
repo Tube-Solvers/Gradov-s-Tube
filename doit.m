@@ -2,11 +2,11 @@ function doit
     R = 0.25;
     R_1 = 0.40;
     delta = 0.2;
-    tau = 1e-4;
+    tau = 1e-3;
     n_pr = 1.46;
     F_u0 = 1000;
     alpha = 0.01;
-    tau_u = 1;
+    tau_u = 10;
     T_p = 500;
     T_e = 293;
 
@@ -17,8 +17,8 @@ function doit
     h_x = 1/(k_x-1);
     x = (0:k_x-1)*h_x;
 
-    k_phi = 21;
-    h_phi = pi/(k_phi-1);
+    k_phi = 201;
+    h_phi = pi/(2*(k_phi-1));
     phi = ((0:k_phi-1)*h_phi)';
 
     function xl = ml(x)
@@ -55,24 +55,24 @@ function doit
         r = 2.049 + 0.563e-3*T - 0.528e5./T.^2;
     end
 
-    %function r = F_u(t)
-    %    r = F_u0 .* t .* exp(-alpha.*t./tau_u);
-    %end
+    function r = F_u(t)
+    %    r = F_u0 .* t .* exp(-(alpha.*t).^2./tau_u);
+       r = 1000;
+    end
 
-    %t_ = [293, 1278, 1528, 1677];
-    %k_p_ = [2e-3, 5e-3, 7.8e-3, 1e-2];
-    %pp_k = splinefit(t_, k_p_, length(t_), "order", 3);
+    k_t_ = [293, 1278, 1528, 1677];
+    k_p_ = [2e-3, 5e-3, 7.8e-3, 1e-2];
+    pp_k = splinefit(k_t_, k_p_, length(k_t_), "order", 3);
 
-    %function r = q(T, t, r)
-    %    sigma = 5.67e-8;
-    %    k_p = ppval(pp_k, T);
-    %    r = F_u(t) * R * k_p / r * exp(-k_p * (R_1 - r)) - 4*k_p * n_pr**2 * sigma * T**4;
-    %end
-
-    % Что делать с g? а именно что такое r в нем
     function g = g(z, phi, t, T)
-        g = 0;
-    end 
+        % sigma = 5.67e-8;
+        % r = repmat(z, length(phi), 1).*R_1;
+        % k_p = squeeze(ppval(pp_k, T));
+        %
+        % g = F_u(t) .* R .* k_p ./ r .* exp(-k_p .* (R_1 .- r)) - 4 .* k_p .* n_pr**2 .* sigma .* T.^4;
+        g = zeros(size(T));
+        g(1:10, :) = -100000;
+    end
 
     function Th = step_x(t, T, Th)
         U = h_x .* z ./ p;
@@ -120,24 +120,36 @@ function doit
         Th = T;
         while 1
             Th_old = Th;
-            
+
             Th = step(t, T, Th);
-           
+
             if max(abs(1 - Th(:)./Th_old(:))) <= 1e-6
                 break
             end
         end
     end
 
+    function plot_temperature(i, T)
+        printf("Time %d\n", i)
+        fig = figure('visible', 'off');
+        imagesc(linspace(0, 1, columns(T)), linspace(1, 0, rows(T)), T, [273, 350]);
+        colorbar();
+        print(["plots/" mat2str(t) ".png"], "-dpng")
+    end
+
+
     T = T_e * ones(k_phi, k_x);
     % Если установсить тока крайний слой в температуру плазмы,
     % он охлаждается до температуры среды за одну итерацию. Почему?
+
+
+
     T(:, [1, 2]) = T_p;
     hold on;
     for t = 1:100
         T = iterate_step(t, T, @(t, T, Th) step_x(t, T, Th));
         T = iterate_step(t, T, @(t, T, Th) step_y(t, T, Th));
-        plot(x, T(1, :));
+        plot_temperature(t, T);
     end
 end
 
@@ -159,4 +171,3 @@ function x = solve_tridiag(a, b, c, d)
         x(:, i) = dd(:, i) - cc(:, i).*x(:, i+1);
     end
 end
-
