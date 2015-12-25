@@ -26,7 +26,15 @@ function doit
     end
 
     function xr = mr(x)
-        xr = [(x(:, 1:end-1) + x(:, 2:end))/2, 1.5*x(:, end) - 0.5*x(:, end-1)];
+        xr = fliplr(ml(fliplr(x)));
+    end
+
+    function xu = mu(x)
+        xu = ml(x')';
+    end
+
+    function xd = md(x)
+        xd = mr(x')';
     end
 
     xl = ml(x);
@@ -63,7 +71,7 @@ function doit
     %k_p_ = [2e-3, 5e-3, 7.8e-3, 1e-2];
     %pp_k = splinefit(k_t_, k_p_, length(k_t_), "order", 3);
 
-    function g = g(z, phi, t, T)
+    function g = g(t, T)
         % sigma = 5.67e-8;
         % r = repmat(linspace(R, R_1, columns(z)), rows(phi), 1);
         % k_p = squeeze(ppval(pp_k, T));
@@ -86,7 +94,7 @@ function doit
         A = tau./(h_x .* R_1^2) .* zl .* pl .* lambda(ml(Th));
         D = tau./(h_x .* R_1^2) .* zr .* pr .* lambda(mr(Th));
         B = A .+ U.*C(Th) .+ D;
-        F = (C(Th).*T .- tau.*g(z, phi, t, Th)) .* U;
+        F = (C(Th).*T .- tau.*g(t, Th)) .* U;
 
         A(:, 1) = nan;
         D(:, 1) = 0;
@@ -104,10 +112,10 @@ function doit
     function Th = step_y(t, T, Th)
         V = z .* h_phi;
 
-        A = tau./(z .* R_1^2) .* lambda(ml(Th')');
-        D = tau./(z .* R_1^2) .* lambda(mr(Th')');
+        A = tau./(z .* R_1^2) .* lambda(mu(Th));
+        D = tau./(z .* R_1^2) .* lambda(md(Th));
         B = A .+ V.*C(Th) .+ D;
-        F = (C(Th).*T .- tau.*g(z, phi, t, Th)) .* V;
+        F = (C(Th).*T .- tau.*g(t, Th)) .* V;
 
         A(1, :) = nan;
         D(1, :) = 1;
