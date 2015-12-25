@@ -13,11 +13,11 @@ function doit
     a = (pi/2 - delta)/(1 - R/R_1);
     y_m = tan(pi/2 - delta);
 
-    k_x = 101;
+    k_x = 21;
     h_x = 1/(k_x-1);
     x = (0:k_x-1)*h_x;
 
-    k_phi = 101;
+    k_phi = 21;
     h_phi = pi/(2*(k_phi-1));
     phi = ((0:k_phi-1)*h_phi)';
 
@@ -84,11 +84,26 @@ function doit
         g = zeros(size(T));
         if t < 3*tau
             %g(1:20, 1) = -1e6;
-            g(49:51, 49:51) = -1e4;
+            jm = floor(rows(g) / 2);
+            im = floor(columns(g) / 2);
+            g(jm-1:jm+1, im-1:im+1) = -1e4;
         end
     end
 
-    function Th = step_x(t, T, Th)
+    function Th = iterate_step(t, T, precision, step)
+        Th = T;
+        while 1
+            Th_old = Th;
+
+            Th = step(t, T, Th);
+
+            if max(abs(1 - Th(:)./Th_old(:))) <= precision
+                break
+            end
+        end
+    end
+
+    function Th = step_local_1d_x(t, T, Th)
         U = h_x .* z ./ p;
 
         A = tau./(h_x .* R_1^2) .* zl .* pl .* lambda(ml(Th));
@@ -109,7 +124,7 @@ function doit
         Th = solve_tridiag(A, -B, D, -F);
     end
 
-    function Th = step_y(t, T, Th)
+    function Th = step_local_1d_y(t, T, Th)
         V = z .* h_phi;
 
         A = tau./(z .* R_1^2) .* lambda(mu(Th));
@@ -130,17 +145,72 @@ function doit
         Th = solve_tridiag(A', -B', D', -F')';
     end
 
-    function Th = iterate_step(t, T, step)
+    function Th = step_local_1d(t, T)
         Th = T;
-        while 1
-            Th_old = Th;
 
-            Th = step(t, T, Th);
+        Th = iterate_step(t, Th, 1e-6, @(t, T, Th) step_local_1d_x(t, T, Th));
+        Th = iterate_step(t, Th, 1e-6, @(t, T, Th) step_local_1d_y(t, T, Th));
+    end
 
-            if max(abs(1 - Th(:)./Th_old(:))) <= 1e-6
-                break
+    function Th = step_naive_2d_xy(t, T, Th)
+        H = x.*h_x.*h_phi./p;
+
+        A = tau.*h_x./(R_1^2 .* p .* z) .* lambda(mu(Th));
+        B = tau.*h_phi./(R_1^2 .* h_x) .* zl .* pl .* lambda(ml(Th));
+        D = tau.*h_phi./(R_1^2 .* h_x) .* zr .* pr .* lambda(mr(Th));
+        E = tau.*h_x./(R_1^2 .* p .* z) .* lambda(md(Th));
+        G = A .+ B .+ H.*C(Th) .+ D .+ E;
+        F = (C(Th).*T - tau.*g(t, Th)) .* H;
+
+        A(1, :) = nan;
+        A(end, :) = 1;
+
+        B(:, 1) = nan;
+        B(:, end) = 0;
+
+        D(:, 1) = 0;
+        D(:, end) = nan;
+
+        E(1, :) = 1;
+        E(end, :) = nan;
+
+        G([1, end], :) = 1;
+        G(:, [1, end]) = 1;
+
+        F([1, end], :) = 0;
+        F(:, [1, end]) = Th(:, [1, end]);
+        
+        L = [];
+        R = [];
+        for j = 1:k_phi
+            for i = 1:k_x
+                if j > 1
+                    L(i, j, i, j-1) = A(j, i);
+                end
+                if i > 1
+                    L(i, j, i-1, j) = B(j, i);
+                end
+                L(i, j, i, j) = -G(j, i);
+                if i < k_x
+                    L(i, j, i+1, j) = D(j, i);
+                end
+                if j < k_phi
+                    L(i, j, i, j+1) = E(j, i);
+                end
+                R(i, j) = -F(j, i);
             end
         end
+
+        L = reshape(L, k_phi * k_x, k_phi * k_x);
+        R = reshape(R, k_phi * k_x, 1);
+
+        Th = L \ R;
+
+        Th = reshape(Th, k_phi, k_x);
+    end
+
+    function Th = step_naive_2d(t, T)
+        Th = iterate_step(t, T, 1e-2, @(t, T, Th) step_naive_2d_xy(t, T, Th));
     end
 
     function plot_temperature(t, T, file, delay)
@@ -164,24 +234,10 @@ function doit
         end
     end
 
-    %function plot_tube(T)
-    %    R_vec = linspace(0.25, 0.40, columns(T));
-    %    P_vec = linspace(0, pi/2, rows(T))';
-    %    X = repmat(R_vec, rows(T), 1) .* cos(repmat(P_vec, 1, columns(T)));
-    %    Y = repmat(R_vec, rows(T), 1) .* sin(repmat(P_vec, 1, columns(T)));
-
-    %    X = reshape(X, 1, []);
-    %    Y = reshape(Y, 1, []);
-    %    Z = reshape(T, 1, []);
-
-    %    [xx, yy] = meshgrid(linspace(0, 0.4, 100));
-    %    griddata(X, Y, Z, xx, yy);
-    %end
-
     T = T_e * ones(k_phi, k_x);
     for t = (0:99).*tau
-        T = iterate_step(t, T, @(t, T, Th) step_x(t, T, Th));
-        T = iterate_step(t, T, @(t, T, Th) step_y(t, T, Th));
+        T = step_local_1d(t, T);
+        %T = step_naive_2d(t, T);
         plot_temperature(t, T, 'animation.gif', 0.1);
     end
 end
