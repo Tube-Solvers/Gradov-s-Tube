@@ -2,7 +2,7 @@ function doit
     R = 0.25;
     R_1 = 0.40;
     delta = 0.2;
-    tau = 1e-1;
+    tau = 1e-2;
     n_pr = 1.46;
     F_u0 = 1000;
     alpha = 0.01;
@@ -140,7 +140,9 @@ function doit
         printf('Time %d\n', t/tau);
         fflush(stdout);
         figure('visible', 'off');
-        imagesc(linspace(R, R_1, columns(T)), linspace(0, 2*pi*R, rows(T)), T, [min(T(:)), max(T(:))]);
+        lo = min(T(:));
+        hi = max(T(:)); hi = max(hi, lo + 1);
+        imagesc(linspace(R, R_1, columns(T)), linspace(0, 2*pi*R, rows(T)), T, [lo, hi]);
         colorbar();
         print('.temp.png', '-dpng');
         [data, map] = rgb2ind(imread('.temp.png'));
