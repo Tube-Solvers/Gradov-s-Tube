@@ -180,8 +180,8 @@ function doit
         F([1, end], :) = 0;
         F(:, [1, end]) = Th(:, [1, end]);
         
-        L = zeros(k_phi, k_x, k_phi, k_x);
-        R = zeros(k_phi, k_x);
+        L = zeros(k_x, k_phi, k_x, k_phi);
+        R = zeros(k_x, k_phi);
         for j = 1:k_phi
             for i = 1:k_x
                 if j > 1
