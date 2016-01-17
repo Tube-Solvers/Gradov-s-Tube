@@ -90,14 +90,15 @@ function doit
         end
     end
 
-    function Th = iterate_step(t, T, precision, step)
+    function Th = iterate_step(t, T, min_precision, step)
         Th = T;
         while 1
             Th_old = Th;
 
             Th = step(t, T, Th);
 
-            if max(abs(1 - Th(:)./Th_old(:))) <= precision
+            precision = max(abs(1 - Th(:)./Th_old(:)));
+            if precision <= min_precision
                 break
             end
         end
@@ -153,7 +154,7 @@ function doit
     end
 
     function Th = step_2d_xy(t, T, Th, solve)
-        H = x.*h_x.*h_phi./p;
+        H = z.*h_x.*h_phi./p;
 
         A = tau.*h_x./(R_1^2 .* p .* z) .* lambda(mu(Th));
         B = tau.*h_phi./(R_1^2 .* h_x) .* zl .* pl .* lambda(ml(Th));
