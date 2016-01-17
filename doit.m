@@ -152,7 +152,7 @@ function doit
         Th = iterate_step(t, Th, 1e-6, @(t, T, Th) step_local_1d_y(t, T, Th));
     end
 
-    function Th = step_naive_2d_xy(t, T, Th)
+    function Th = step_2d_xy(t, T, Th, solve)
         H = x.*h_x.*h_phi./p;
 
         A = tau.*h_x./(R_1^2 .* p .* z) .* lambda(mu(Th));
@@ -180,8 +180,8 @@ function doit
         F([1, end], :) = 0;
         F(:, [1, end]) = Th(:, [1, end]);
         
-        L = [];
-        R = [];
+        L = zeros(k_phi, k_x, k_phi, k_x);
+        R = zeros(k_phi, k_x);
         for j = 1:k_phi
             for i = 1:k_x
                 if j > 1
@@ -204,13 +204,26 @@ function doit
         L = reshape(L, k_phi * k_x, k_phi * k_x);
         R = reshape(R, k_phi * k_x, 1);
 
-        Th = L \ R;
+        Th = solve(L, R);
 
         Th = reshape(Th, k_phi, k_x);
     end
 
+    function Th = step_naive_2d_xy(t, T, Th)
+        Th = step_2d_xy(t, T, Th, @(A, b) A \ b);
+    end
+
     function Th = step_naive_2d(t, T)
         Th = iterate_step(t, T, 1e-2, @(t, T, Th) step_naive_2d_xy(t, T, Th));
+    end
+
+    function Th = step_smart_2d_xy(t, T, Th)
+        k_x_local = k_x; % apparently cant closure across more than one scope
+        Th = step_2d_xy(t, T, Th, @(A, b) triblocksolve(A, b, k_x_local));
+    end
+
+    function Th = step_smart_2d(t, T)
+        Th = iterate_step(t, T, 1e-2, @(t, T, Th) step_smart_2d_xy(t, T, Th));
     end
 
     function plot_temperature(t, T, file, delay)
@@ -238,6 +251,7 @@ function doit
     for t = (0:99).*tau
         T = step_local_1d(t, T);
         %T = step_naive_2d(t, T);
+        %T = step_smart_2d(t, T);
         plot_temperature(t, T, 'animation.gif', 0.1);
     end
 end
@@ -259,4 +273,71 @@ function x = solve_tridiag(a, b, c, d)
     for i = fliplr(1:n - 1)
         x(:, i) = dd(:, i) - cc(:, i).*x(:, i+1);
     end
+end
+
+function x = triblocksolve(A,b,N)
+    [rows,cols]=size(A);
+
+    % Determine if number of rows is a multiple of N
+    if ~mod(N,rows)
+        error('A must have an integer number of N by N blocks');
+    end
+
+    % Get number of blocks
+    nblk=rows/N;
+
+    % Convert rhs to matrix
+    b=reshape(b,N,nblk);
+
+    % Store solution as matrix
+    x=zeros(N,nblk);
+    c=x;
+
+    % Diagonal blocks 
+    D=zeros(N,N,nblk);
+    Q=D; G=D;
+
+    % subdiagonal blocks
+    C=zeros(N,N,nblk-1);
+
+    % superdiagonal blocks
+    B=C;
+
+    % Convert A into arrays of blocks
+    for k=1:nblk-1
+        block=(1:N)+(k-1)*N;
+        D(:,:,k)=A(block,block);
+        B(:,:,k)=A(block+N,block);
+        C(:,:,k)=A(block,block+N);
+    end
+
+    block=(1:N)+(nblk-1)*N;
+    D(:,:,nblk)=A(block,block);
+
+    % Ok up to here
+
+    Q(:,:,1)=D(:,:,1);
+    G(:,:,1)=Q(:,:,1)\C(:,:,1);
+
+    for k=2:nblk-1
+        Q(:,:,k)=D(:,:,k)-B(:,:,k-1)*G(:,:,k-1);
+        G(:,:,k)=Q(:,:,k)\C(:,:,k);
+    end
+
+    Q(:,:,nblk)=D(:,:,nblk)-B(:,:,nblk-1)*G(:,:,nblk-1);
+
+    c(:,1)=Q(:,:,1)\b(:,1);
+
+    for k=2:nblk
+        c(:,k)=Q(:,:,k)\( b(:,k)-B(:,:,k-1)*c(:,k-1) );
+    end
+
+    x(:,nblk)=c(:,nblk);
+
+    for k=(nblk-1):-1:1
+        x(:,k)=c(:,k)-G(:,:,k)*x(:,k+1);
+    end
+
+    % Revert to vector form
+    x=x(:);
 end
